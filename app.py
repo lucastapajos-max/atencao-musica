@@ -6,6 +6,7 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
+import streamlit.components.v1 as components
 
 import analise as an
 
@@ -17,7 +18,10 @@ st.markdown("""<style>
 [data-testid="stCaptionContainer"], [data-testid="stCaptionContainer"] * { color: #4a4f57 !important; opacity: 1 !important; }
 [data-testid="stCaptionContainer"] a, [data-testid="stMarkdownContainer"] a { color: #0b5e53 !important; opacity: 1 !important; }
 [data-testid="stMarkdownContainer"] p, [data-testid="stCaptionContainer"] p { max-width: 62ch; text-wrap: pretty; }
+:focus-visible { outline: 2px solid #0F7B6C !important; outline-offset: 2px; }
 </style>""", unsafe_allow_html=True)
+# O Streamlit marca toda página como inglês; leitor de tela precisa saber que é pt-BR (WCAG 3.1.1).
+components.html("<script>window.parent.document.documentElement.lang = 'pt-BR'</script>", height=0)
 
 # Uma cor por gênero no app inteiro. Vermelho fica de fora: aqui ele leria como alerta.
 CORES = {"Sertanejo": "#C27C0E", "Funk e pop": "#C2416B", "MPB": "#0F7B6C", "Rap e trap": "#2F5BB7"}
@@ -30,6 +34,13 @@ def carregar():
     sem, dia = an.consultar(an.SQL_SEMANAL), an.consultar(an.SQL_DIARIO)
     dia["data"] = pd.to_datetime(dia["data"])
     return sem, dia
+
+
+@st.cache_data
+def picos_de(generos):
+    """Picos dos gêneros escolhidos; o cálculo leva ~0,7 s, então só roda quando o filtro muda."""
+    dia = carregar()[1]
+    return an.picos(dia[dia["genero"].isin(generos)])
 
 
 def br(v, casas=0):
@@ -136,7 +147,7 @@ with aba1:
 
 # --- Picos --------------------------------------------------------------------
 with aba2:
-    pk = an.picos(diario[diario["genero"].isin(generos)])
+    pk = picos_de(tuple(generos))
     if pk.empty:
         st.info("Nenhum dia atípico nos gêneros escolhidos.")
     else:
