@@ -1,4 +1,4 @@
-"""Dashboard: atenção digital à música brasileira (pageviews da Wikipédia)."""
+"""Painel: acessos à Wikipédia e eventos da música brasileira (pageviews da Wikimedia)."""
 import sqlite3
 
 import numpy as np
@@ -10,7 +10,7 @@ import streamlit.components.v1 as components
 
 import analise as an
 
-st.set_page_config(page_title="Atenção à música brasileira", page_icon=":material/graphic_eq:", layout="wide")
+st.set_page_config(page_title="Acessos à Wikipédia · música brasileira", page_icon=":material/graphic_eq:", layout="wide")
 
 # Legendas e links com contraste de leitura (o cinza padrão fica abaixo de 4,5:1) e texto
 # corrido com no máximo ~75 caracteres por linha. Tabelas e gráficos não são afetados.
@@ -68,10 +68,10 @@ def rotulo_semana(s):
     return f"{ini:%d/%m} a {ini + pd.Timedelta(days=6):%d/%m/%Y}"
 
 
-st.title("Atenção digital à música brasileira")
+st.title("Acessos à Wikipédia e eventos da música brasileira")
 st.caption(
-    f"Quanto as pessoas procuram saber de {semanal['artista'].nunique()} artistas brasileiros, medido pelas visualizações dos "
-    f"verbetes na Wikipédia em português, de {diario['data'].min():%d/%m/%Y} a "
+    f"Acessos diários aos verbetes de {semanal['artista'].nunique()} artistas brasileiros na Wikipédia "
+    f"em português, de {diario['data'].min():%d/%m/%Y} a "
     f"{diario['data'].max():%d/%m/%Y}. Atualizado toda segunda. Fonte: Wikimedia Pageviews API "
     "(dados abertos, CC0), só acessos humanos.")
 
@@ -88,7 +88,7 @@ sem = semanal[semanal["genero"].isin(generos)]
 radar = an.radar_semana(sem, semana)
 fim_semana = pd.to_datetime(semana) + pd.Timedelta(days=6)
 
-aba1, aba2, aba3, aba4 = st.tabs(["Radar da semana", "Picos de atenção", "Gêneros (teste t)", "SQL"])
+aba1, aba2, aba3, aba4 = st.tabs(["Radar da semana", "Picos de acesso", "Gêneros (teste t)", "SQL"])
 
 # --- Radar --------------------------------------------------------------------
 with aba1:
@@ -102,7 +102,7 @@ with aba1:
         acima = radar[radar["status"] == "acima do normal"].sort_values("vs_mediana_pct", ascending=False)
         abaixo = radar[radar["status"] == "abaixo do normal"].sort_values("vs_mediana_pct")
         frases = [f"Semana de {pd.to_datetime(semana):%d/%m} a {fim_semana:%d/%m/%Y}: "
-                  f"**{br(total)} visualizações** nos gêneros escolhidos"]
+                  f"**{br(total)} acessos** nos gêneros escolhidos"]
         if bt:
             frases[0] += (f", {br(abs(bt['vs_mediana_pct']))}% {'acima' if bt['vs_mediana_pct'] >= 0 else 'abaixo'} "
                           f"da mediana das 26 semanas anteriores ({bt['status']}).")
@@ -121,7 +121,7 @@ with aba1:
             hide_index=True, width="stretch",
             column_config={
                 "artista": "Artista", "genero": "Gênero", "status": "Leitura",
-                "valor": st.column_config.NumberColumn("Views na semana", format=NUM),
+                "valor": st.column_config.NumberColumn("Acessos na semana", format=NUM),
                 "mediana": st.column_config.NumberColumn("Mediana 26 sem.", format=NUM),
                 "vs_mediana_pct": st.column_config.NumberColumn("vs mediana", format="%+.0f%%"),
             })
@@ -138,7 +138,7 @@ with aba1:
                        fillcolor="rgba(128,128,128,.22)", name="Faixa usual (Q1 a Q3)", hoverinfo="skip"),
             go.Scatter(x=g["semana"], y=g["lim_sup"], line=dict(dash="dot", color="gray", width=1),
                        name="Limite do normal", hovertemplate="%{y:,.0f}<extra>Limite</extra>"),
-            go.Scatter(x=g["semana"], y=g["views"], line=dict(color=cor, width=2), name="Views na semana",
+            go.Scatter(x=g["semana"], y=g["views"], line=dict(color=cor, width=2), name="Acessos na semana",
                        hovertemplate="%{x|%d/%m/%Y}: %{y:,.0f}<extra></extra>"),
         ])
         fig.add_vline(x=semana, line_color="gray", line_width=1, line_dash="dash")
@@ -154,7 +154,7 @@ with aba2:
         maior = pk.iloc[0]
         na_semana = pk[(pk["data"] >= pd.to_datetime(semana)) & (pk["data"] <= fim_semana)]
         resumo = (f"Maior salto do período: **{maior['artista']}** em {maior['data']:%d/%m/%Y}, "
-                  f"com {br(maior['vezes_base'], 1)} vezes as visualizações de um dia típico. ")
+                  f"com {br(maior['vezes_base'], 1)} vezes os acessos de um dia típico. ")
         if len(na_semana):
             dias = na_semana.sort_values("data")
             resumo += (f"Na semana de {rotulo_semana(semana)}: "
@@ -165,7 +165,7 @@ with aba2:
         st.markdown(resumo)
         with st.expander("Como calculei"):
             st.markdown(
-                "Um pico é um dia em que o artista teve muito mais visualizações que o próprio padrão "
+                "Um pico é um dia em que o artista teve muito mais acessos que o próprio padrão "
                 "dos 90 dias anteriores. A régua é a mediana desses dias, e a distância é medida pelo "
                 "desvio absoluto mediano (MAD), em escala logarítmica, com corte em 3,5. Mediana e MAD "
                 "não se deixam distorcer por um único dia viral, como média e desvio padrão se deixariam.")
@@ -176,12 +176,12 @@ with aba2:
             column_config={
                 "data": st.column_config.DateColumn("Dia", format="DD/MM/YYYY"),
                 "artista": "Artista", "genero": "Gênero",
-                "views": st.column_config.NumberColumn("Views no dia", format=NUM),
+                "views": st.column_config.NumberColumn("Acessos no dia", format=NUM),
                 "base": st.column_config.NumberColumn("Dia típico", format=NUM, help="Mediana dos 90 dias anteriores"),
                 "vezes_base": st.column_config.NumberColumn("Vezes o dia típico", format=NUM),
             })
         st.caption(f"{br(len(pk))} dias atípicos no período, somando os artistas filtrados. O dado mostra "
-                   "quando a atenção saltou; o porquê (lançamento, show, notícia) pede checagem em notícias.")
+                   "quando os acessos saltaram; o porquê (lançamento, show, notícia) pede checagem em notícias.")
         fig = px.scatter(pk, x="data", y="vezes_base", color="genero", hover_name="artista", log_y=True,
                          color_discrete_map=CORES, category_orders={"genero": list(CORES)},
                          labels={"data": "", "vezes_base": "Vezes o dia típico (log)", "genero": "Gênero"},
@@ -194,7 +194,7 @@ with aba2:
 
 # --- Welch --------------------------------------------------------------------
 with aba3:
-    st.markdown("Um gênero atrai mais atenção que outro, ou a diferença cabe no acaso?")
+    st.markdown("Os artistas de um gênero têm mais acessos que os de outro, ou a diferença cabe no acaso?")
     r = None
     if len(generos) < 2:
         st.info("Para comparar, deixe ao menos dois gêneros marcados na barra lateral.")
@@ -212,14 +212,14 @@ with aba3:
         veredito = ("A diferença é estatisticamente significante (p < 0,05)." if r["significante"]
                     else "Com essa amostra, não dá para afirmar que a diferença não é acaso (p ≥ 0,05).")
         st.markdown(
-            f"Na média geométrica, um artista de **{mais}** teve **{br(razao, 1)} vezes** as visualizações "
+            f"Na média geométrica, um artista de **{mais}** teve **{br(razao, 1)} vezes** os acessos "
             f"semanais de um artista de **{menos}** nas últimas {r['semanas']} semanas. {veredito}")
         st.caption(f"Base: {r['n_a']} artistas de {ga} e {r['n_b']} de {gb}. Com grupos tão pequenos, o "
                    "teste só enxerga diferenças grandes: quando ele não acha diferença, quer dizer \"não "
                    "deu para ver\", não \"são iguais\".")
         with st.expander("Como calculei"):
             st.markdown(
-                "Cada artista vira um ponto: a média do log das visualizações semanais na janela "
+                "Cada artista vira um ponto: a média do log dos acessos semanais na janela "
                 "escolhida. Assim, 12 semanas do mesmo artista não contam como 12 casos independentes. "
                 "O teste t de Welch compara os dois grupos sem supor que eles variem do mesmo jeito.\n\n"
                 f"p-valor **{br(r['p'], 3)}** (abaixo de 0,05, a diferença dificilmente é acaso) · "
@@ -232,7 +232,7 @@ with aba3:
                .assign(views=lambda d: 10 ** d["log"]))
         fig = px.box(pts, x="genero", y="views", color="genero", points="all", hover_name="artista",
                      log_y=True, color_discrete_map=CORES, category_orders={"genero": [ga, gb]},
-                     labels={"genero": "", "views": "Views semanais (média geométrica, log)"},
+                     labels={"genero": "", "views": "Acessos semanais (média geométrica, log)"},
                      hover_data={"genero": False, "views": ":,.0f"})
         fig.update_layout(showlegend=False, separators=",.")
         grafico(fig)
