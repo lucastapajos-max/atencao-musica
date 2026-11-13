@@ -267,5 +267,5 @@ with aba4:
             st.error(f"A consulta não rodou: {e}. Confira os nomes das tabelas e colunas acima.")
 
 st.divider()
-st.caption("Projeto de portfólio de Lucas Tapajós · [código no GitHub](https://github.com/lucastapajos-max/atencao-musica) · "
+st.caption("Projeto de portfólio de Lucas Tapajós · [código no GitHub](https://github.com/lucastapajos-max/acessos-wikipedia-musica) · "
            "metodologia descrita no README.")

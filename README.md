@@ -2,7 +2,7 @@
 
 Projeto de portfólio feito para demonstrar, com dados públicos, o ciclo completo de uma análise: coleta por API, banco SQLite consultado em SQL, análise estatística em Python e painel publicado em Streamlit. O tema é como acontecimentos do mundo real (um aniversário, a data de uma morte) aparecem nos acessos aos verbetes de 24 artistas brasileiros na Wikipédia em português.
 
-**App no ar:** https://atencao-musica-brasileira.streamlit.app
+**App no ar:** https://wikipedia-musica-brasileira.streamlit.app
 
 ![Radar da semana](docs/radar.jpg)
 
