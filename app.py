@@ -9,7 +9,15 @@ import streamlit as st
 
 import analise as an
 
-st.set_page_config(page_title="Atenção à música brasileira", page_icon="🎧", layout="wide")
+st.set_page_config(page_title="Atenção à música brasileira", page_icon=":material/graphic_eq:", layout="wide")
+
+# Legendas e links com contraste de leitura (o cinza padrão fica abaixo de 4,5:1) e texto
+# corrido com no máximo ~75 caracteres por linha. Tabelas e gráficos não são afetados.
+st.markdown("""<style>
+[data-testid="stCaptionContainer"], [data-testid="stCaptionContainer"] * { color: #4a4f57 !important; opacity: 1 !important; }
+[data-testid="stCaptionContainer"] a, [data-testid="stMarkdownContainer"] a { color: #0b5e53 !important; opacity: 1 !important; }
+[data-testid="stMarkdownContainer"] p, [data-testid="stCaptionContainer"] p { max-width: 62ch; text-wrap: pretty; }
+</style>""", unsafe_allow_html=True)
 
 # Uma cor por gênero no app inteiro. Vermelho fica de fora: aqui ele leria como alerta.
 CORES = {"Sertanejo": "#C27C0E", "Funk e pop": "#C2416B", "MPB": "#0F7B6C", "Rap e trap": "#2F5BB7"}
@@ -42,18 +50,22 @@ def grafico(fig, altura=360):
 semanal, diario = carregar()
 semanas = sorted(semanal["semana"].unique())
 
+def rotulo_semana(s):
+    ini = pd.to_datetime(s)
+    return f"{ini:%d/%m} a {ini + pd.Timedelta(days=6):%d/%m/%Y}"
+
+
 st.title("Atenção digital à música brasileira")
 st.caption(
-    "Visualizações diárias dos verbetes de 24 artistas na Wikipédia em português, "
-    f"de {diario['data'].min():%d/%m/%Y} a {diario['data'].max():%d/%m/%Y}. "
-    "Fonte: Wikimedia Pageviews API (dados abertos, CC0), só acessos humanos. "
-    "Visualização de verbete mede interesse (gente procurando saber do artista), não audiência.")
+    "Quanto as pessoas procuram saber de 24 artistas brasileiros, medido pelas visualizações dos "
+    f"verbetes na Wikipédia em português, de {diario['data'].min():%d/%m/%Y} a "
+    f"{diario['data'].max():%d/%m/%Y}. Atualizado toda segunda. Fonte: Wikimedia Pageviews API "
+    "(dados abertos, CC0), só acessos humanos.")
 
 with st.sidebar:
-    semana = st.selectbox("Semana (segunda a domingo)", semanas[::-1],
-                          format_func=lambda s: f"{pd.to_datetime(s):%d/%m/%Y}")
+    semana = st.selectbox("Semana", semanas[::-1], format_func=rotulo_semana)
     generos = st.multiselect("Gêneros", list(CORES), default=list(CORES))
-    st.caption("Gêneros são um agrupamento editorial deste projeto, não uma classificação oficial.")
+    st.caption("Agrupamento editorial deste projeto, não uma classificação oficial.")
 
 if not generos:
     st.info("Escolha ao menos um gênero na barra lateral para ver o painel.")
@@ -97,8 +109,8 @@ with aba1:
             column_config={
                 "artista": "Artista", "genero": "Gênero", "status": "Leitura",
                 "valor": st.column_config.NumberColumn("Views na semana", format=NUM),
-                "mediana": st.column_config.NumberColumn("Mediana de 26 semanas", format=NUM),
-                "vs_mediana_pct": st.column_config.NumberColumn("Diferença da mediana", format="%+.0f%%"),
+                "mediana": st.column_config.NumberColumn("Mediana 26 sem.", format=NUM),
+                "vs_mediana_pct": st.column_config.NumberColumn("vs mediana", format="%+.0f%%"),
             })
         st.caption("O normal de cada artista é a faixa das 26 semanas anteriores (mediana e intervalo "
                    "interquartil). Fica acima do normal quem passa de Q3 + 1,5 × IQR, o critério do boxplot.")
@@ -124,14 +136,28 @@ with aba1:
 
 # --- Picos --------------------------------------------------------------------
 with aba2:
-    st.markdown(
-        "Dias em que o artista teve muito mais visualizações que o próprio padrão dos 90 dias anteriores. "
-        "O critério é um z-score robusto (mediana e MAD, em escala log) de 3,5 ou mais: um único dia "
-        "viral não distorce a régua, como aconteceria com média e desvio padrão.")
     pk = an.picos(diario[diario["genero"].isin(generos)])
     if pk.empty:
         st.info("Nenhum dia atípico nos gêneros escolhidos.")
     else:
+        maior = pk.iloc[0]
+        na_semana = pk[(pk["data"] >= pd.to_datetime(semana)) & (pk["data"] <= fim_semana)]
+        resumo = (f"Maior salto do período: **{maior['artista']}** em {maior['data']:%d/%m/%Y}, "
+                  f"com {br(maior['vezes_base'], 1)} vezes as visualizações de um dia típico. ")
+        if len(na_semana):
+            dias = na_semana.sort_values("data")
+            resumo += (f"Na semana de {rotulo_semana(semana)}: "
+                       + lista(f"{r.artista} ({r.data:%d/%m}, {br(r.vezes_base, 1)} vezes)" for r in dias.itertuples())
+                       + ".")
+        else:
+            resumo += f"Na semana de {rotulo_semana(semana)}, nenhum artista teve um dia fora do padrão."
+        st.markdown(resumo)
+        with st.expander("Como calculei"):
+            st.markdown(
+                "Um pico é um dia em que o artista teve muito mais visualizações que o próprio padrão "
+                "dos 90 dias anteriores. A régua é a mediana desses dias, e a distância é medida pelo "
+                "desvio absoluto mediano (MAD), em escala logarítmica, com corte em 3,5. Mediana e MAD "
+                "não se deixam distorcer por um único dia viral, como média e desvio padrão se deixariam.")
         top = st.slider("Quantos picos mostrar", 5, 50, 15)
         st.dataframe(
             pk.head(top).round({"base": 0, "vezes_base": 1})[["data", "artista", "genero", "views", "base", "vezes_base"]],
@@ -140,7 +166,7 @@ with aba2:
                 "data": st.column_config.DateColumn("Dia", format="DD/MM/YYYY"),
                 "artista": "Artista", "genero": "Gênero",
                 "views": st.column_config.NumberColumn("Views no dia", format=NUM),
-                "base": st.column_config.NumberColumn("Dia típico (mediana de 90 dias)", format=NUM),
+                "base": st.column_config.NumberColumn("Dia típico", format=NUM, help="Mediana dos 90 dias anteriores"),
                 "vezes_base": st.column_config.NumberColumn("Vezes o dia típico", format=NUM),
             })
         st.caption(f"{br(len(pk))} dias atípicos no período, somando os artistas filtrados. O dado mostra "
@@ -149,25 +175,27 @@ with aba2:
                          color_discrete_map=CORES, category_orders={"genero": list(CORES)},
                          labels={"data": "", "vezes_base": "Vezes o dia típico (log)", "genero": "Gênero"},
                          hover_data={"data": "|%d/%m/%Y", "vezes_base": ":.1f", "genero": False})
+        fig.add_vrect(x0=pd.to_datetime(semana), x1=fim_semana + pd.Timedelta(days=1),
+                      fillcolor="gray", opacity=.25, line_width=0,
+                      annotation_text="semana escolhida", annotation_position="top left")
         fig.update_layout(separators=",.")
         grafico(fig)
 
 # --- Welch --------------------------------------------------------------------
 with aba3:
-    st.markdown(
-        "Um gênero atrai mais atenção que outro, ou a diferença cabe no acaso? Cada artista vira **um** "
-        "ponto (média do log das views semanais na janela escolhida), para não contar semanas do mesmo "
-        "artista como se fossem pessoas diferentes. O teste t de Welch não supõe que os dois grupos "
-        "tenham a mesma variância.")
-    todos = list(CORES)
-    c1, c2, c3 = st.columns(3)
-    ga = c1.selectbox("Gênero A", todos, index=todos.index("MPB"))
-    gb = c2.selectbox("Gênero B", [g for g in todos if g != ga])
-    janela = c3.slider("Janela (semanas)", 4, 52, 12)
-    r = an.welch(semanal, ga, gb, janela)
-    if r is None:
-        st.info(f"Amostra insuficiente: são precisos ao menos {an.MIN_ARTISTAS} artistas por gênero.")
+    st.markdown("Um gênero atrai mais atenção que outro, ou a diferença cabe no acaso?")
+    r = None
+    if len(generos) < 2:
+        st.info("Para comparar, deixe ao menos dois gêneros marcados na barra lateral.")
     else:
+        c1, c2, c3 = st.columns(3)
+        ga = c1.selectbox("Gênero A", generos, index=generos.index("MPB") if "MPB" in generos else 0)
+        gb = c2.selectbox("Gênero B", [g for g in generos if g != ga])
+        janela = c3.slider("Janela (semanas)", 4, 52, 12)
+        r = an.welch(semanal, ga, gb, janela)
+        if r is None:
+            st.info(f"Amostra insuficiente: são precisos ao menos {an.MIN_ARTISTAS} artistas por gênero.")
+    if r:
         mais, menos = (ga, gb) if r["razao"] >= 1 else (gb, ga)
         razao = max(r["razao"], 1 / r["razao"])
         veredito = ("A diferença é estatisticamente significante (p < 0,05)." if r["significante"]
@@ -175,11 +203,17 @@ with aba3:
         st.markdown(
             f"Na média geométrica, um artista de **{mais}** teve **{br(razao, 1)} vezes** as visualizações "
             f"semanais de um artista de **{menos}** nas últimas {r['semanas']} semanas. {veredito}")
-        st.markdown(f"p-valor **{br(r['p'], 3)}** · t de Welch **{br(r['t'], 2)}** · "
-                    f"tamanho do efeito (d de Cohen) **{br(r['d'], 2)}** · "
-                    f"n = {r['n_a']} artistas em {ga} e {r['n_b']} em {gb}")
-        st.caption("Com grupos tão pequenos, o teste só detecta diferenças grandes: p alto aqui quer "
-                   "dizer \"não deu para ver\", não \"são iguais\".")
+        st.caption(f"Base: {r['n_a']} artistas de {ga} e {r['n_b']} de {gb}. Com grupos tão pequenos, o "
+                   "teste só enxerga diferenças grandes: quando ele não acha diferença, quer dizer \"não "
+                   "deu para ver\", não \"são iguais\".")
+        with st.expander("Como calculei"):
+            st.markdown(
+                "Cada artista vira um ponto: a média do log das visualizações semanais na janela "
+                "escolhida. Assim, 12 semanas do mesmo artista não contam como 12 casos independentes. "
+                "O teste t de Welch compara os dois grupos sem supor que eles variem do mesmo jeito.\n\n"
+                f"p-valor **{br(r['p'], 3)}** (abaixo de 0,05, a diferença dificilmente é acaso) · "
+                f"t de Welch **{br(r['t'], 2)}** · tamanho do efeito, d de Cohen, **{br(r['d'], 2)}** "
+                "(a partir de 0,8 em módulo, a diferença é considerada grande)")
         ult = sorted(semanal["semana"].unique())[-janela:]
         pts = (semanal[semanal["semana"].isin(ult) & semanal["genero"].isin([ga, gb])]
                .assign(log=lambda d: np.log10(d["views"].clip(lower=1)))
@@ -197,6 +231,7 @@ with aba4:
     st.markdown("Os dados ficam num banco SQLite com duas tabelas, `artistas` e `pageviews`. "
                 "A agregação semanal do painel sai desta consulta:")
     st.code(an.SQL_SEMANAL.strip(), language="sql")
+    st.caption("A consulta enxerga o banco inteiro: os filtros da barra lateral não se aplicam aqui.")
     q = st.text_area("Escreva outra consulta (o banco abre só para leitura)",
                      "SELECT a.genero, COUNT(DISTINCT a.artigo) AS artistas, SUM(p.views) AS views\n"
                      "FROM pageviews p JOIN artistas a USING (artigo)\n"

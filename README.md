@@ -32,7 +32,7 @@ Num relatório semanal de redes sociais, uma pergunta sempre volta: "esse númer
 | Picos | `picos()` | z-score robusto em escala log: mediana e MAD dos 90 dias anteriores, corte em 3,5. Mediana e MAD não se deixam distorcer por um único dia viral, como aconteceria com média e desvio padrão. |
 | Comparação de gêneros | `welch()` | Teste t de Welch sobre a média do log das views semanais **por artista**. Cada artista é uma observação, para não contar 12 semanas do mesmo artista como 12 casos independentes. Welch porque não supõe variâncias iguais. Mostra p-valor, tamanho do efeito (d de Cohen) e n. |
 | Atualização | [`coleta.yml`](.github/workflows/coleta.yml) | Toda segunda às 6h (Brasília), o GitHub Actions coleta a semana que fechou no domingo, roda os testes e só então grava o banco. O Streamlit Cloud republica o app a cada gravação. |
-| Testes | [`tests/`](tests) | `pytest` com dados sintéticos: a faixa classifica certo, o pico plantado é achado, o teste respeita a amostra mínima, toda semana do SQL começa na segunda. |
+| Testes | [`tests/`](tests) | `pytest` com dados sintéticos: a faixa classifica certo, o pico plantado é achado, o teste respeita a amostra mínima, toda semana do SQL começa na segunda, e o app abre sem erro com um gênero ou com todos. |
 
 ## Resultado
 
