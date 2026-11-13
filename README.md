@@ -31,11 +31,12 @@ Num relatório semanal de redes sociais, uma pergunta sempre volta: "esse númer
 | Faixa de normalidade | `faixa_normal()` | Mediana e intervalo interquartil (IQR) das 26 semanas anteriores. Acima de Q3 + 1,5 × IQR é "acima do normal", o critério do boxplot. Com menos de 8 semanas de histórico, não julga. |
 | Picos | `picos()` | z-score robusto em escala log: mediana e MAD dos 90 dias anteriores, corte em 3,5. Mediana e MAD não se deixam distorcer por um único dia viral, como aconteceria com média e desvio padrão. |
 | Comparação de gêneros | `welch()` | Teste t de Welch sobre a média do log das views semanais **por artista**. Cada artista é uma observação, para não contar 12 semanas do mesmo artista como 12 casos independentes. Welch porque não supõe variâncias iguais. Mostra p-valor, tamanho do efeito (d de Cohen) e n. |
+| Atualização | [`coleta.yml`](.github/workflows/coleta.yml) | Toda segunda às 6h (Brasília), o GitHub Actions coleta a semana que fechou no domingo, roda os testes e só então grava o banco. O Streamlit Cloud republica o app a cada gravação. |
 | Testes | [`tests/`](tests) | `pytest` com dados sintéticos: a faixa classifica certo, o pico plantado é achado, o teste respeita a amostra mínima, toda semana do SQL começa na segunda. |
 
 ## Resultado
 
-Leituras da coleta de 13/11/2026 (o painel recalcula a cada coleta):
+Leituras da coleta de 13/11/2026. O painel recalcula tudo toda segunda, com a coleta automática, e os números abaixo ficam como registro dessa data.
 
 - **Picos explicáveis:** o maior pico de Chico Buarque foi em 19/06/2024, dia em que ele fez 80 anos: 10.961 visualizações contra 592 num dia típico, 18,5 vezes mais. Na semana de 02/11/2026, a de Marília Mendonça somou 11.159 visualizações, 304% acima da mediana de 26 semanas, na semana em que se completaram cinco anos da morte dela (05/11/2021). O método aponta *quando* a atenção saltou; o *porquê* sai da checagem em notícias.
 - **Gêneros:** nas últimas 12 semanas, um artista de MPB teve, em média geométrica, 4,9 vezes as visualizações semanais de um artista de Funk e pop (Welch, p = 0,020, d = 1,85, n = 6 por grupo). Funk e pop contra Rap e trap não teve diferença detectável (p = 0,51). Com 6 artistas por grupo, p alto quer dizer "não deu para ver", não "são iguais".
@@ -50,14 +51,13 @@ Leituras da coleta de 13/11/2026 (o painel recalcula a cada coleta):
 python -m venv .venv
 .venv/Scripts/activate        # Linux/macOS: source .venv/bin/activate
 pip install -r requirements.txt
-python coleta.py              # atualiza data/atencao.db (opcional: o banco já vem no repositório)
+python coleta.py              # opcional: o banco já vem no repositório e se atualiza toda segunda
 streamlit run app.py
 python -m pytest tests -q
 ```
 
 ## Próximos passos
 
-- Coleta agendada (GitHub Actions) para o painel se atualizar sozinho toda segunda.
 - Cruzar os picos com datas de lançamento e notícias para classificar a causa.
 - Somar uma segunda fonte de atenção, como seguidores em plataformas de streaming.
 
