@@ -2,7 +2,7 @@
 
 Painel que acompanha, semana a semana, quanto as pessoas procuram saber de 24 artistas brasileiros, medido pelas visualizações dos verbetes deles na Wikipédia em português.
 
-**App no ar:** _(link do Streamlit Community Cloud)_
+**App no ar:** https://atencao-musica-brasileira.streamlit.app
 
 ![Radar da semana](docs/radar.jpg)
 

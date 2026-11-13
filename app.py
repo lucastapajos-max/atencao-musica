@@ -168,5 +168,5 @@ with aba4:
             st.error(f"Erro na consulta: {e}")
 
 st.divider()
-st.caption("Projeto de portfólio de Lucas Tapajós · código em GitHub · "
+st.caption("Projeto de portfólio de Lucas Tapajós · [código no GitHub](https://github.com/lucastapajos-max/atencao-musica) · "
            "metodologia de faixa de normalidade, picos e teste t descrita no README.")
