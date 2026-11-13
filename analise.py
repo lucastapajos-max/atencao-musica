@@ -19,6 +19,8 @@ DB = Path(__file__).parent / "data" / "atencao.db"
 MIN_SEMANAS_FAIXA = 8   # semanas de histórico para definir o "normal"
 MIN_DIAS_PICO = 60      # dias de histórico para julgar um pico
 MIN_ARTISTAS = 4        # artistas por gênero para comparar gêneros
+JANELA_FAIXA = 26       # semanas de histórico que definem o normal
+LIMITE_IQR = 1.5        # fora de Q1-1,5·IQR e Q3+1,5·IQR é fora do normal (critério do boxplot)
 
 # Semana de segunda a domingo. 'weekday 0' leva ao domingo; -6 dias volta à segunda.
 SQL_SEMANAL = """
@@ -49,7 +51,7 @@ def faixa_normal(historico, valor):
         return None
     q1, med, q3 = s.quantile(.25), s.median(), s.quantile(.75)
     iqr = q3 - q1
-    lo, hi = q1 - 1.5 * iqr, q3 + 1.5 * iqr
+    lo, hi = q1 - LIMITE_IQR * iqr, q3 + LIMITE_IQR * iqr
     if valor > hi:
         status = "acima do normal"
     elif valor < lo:
@@ -62,7 +64,14 @@ def faixa_normal(historico, valor):
             "vs_mediana_pct": (valor - med) / med * 100 if med else None}
 
 
-def radar_semana(semanal, semana, janela=26):
+def faixa_rolante(views):
+    """A mesma faixa de faixa_normal(), semana a semana, para desenhar no gráfico da série."""
+    roll = pd.Series(views, dtype=float).rolling(JANELA_FAIXA, min_periods=MIN_SEMANAS_FAIXA)
+    q1, q3 = roll.quantile(.25).shift(1), roll.quantile(.75).shift(1)
+    return pd.DataFrame({"q1": q1, "q3": q3, "lim_sup": q3 + LIMITE_IQR * (q3 - q1)})
+
+
+def radar_semana(semanal, semana, janela=JANELA_FAIXA):
     """Aplica a faixa_normal a cada artista na `semana`, contra as `janela` anteriores."""
     linhas = []
     for (artista, genero), g in semanal.groupby(["artista", "genero"]):
@@ -81,8 +90,12 @@ def picos(diario, z_corte=3.5, janela=90):
     média e esconde os outros. Trabalha em log, porque a atenção cresce aos saltos.
     """
     saida = []
-    for artista, g in diario.groupby("artista"):
-        g = g.sort_values("data").reset_index(drop=True)
+    for (artista, genero), g in diario.groupby(["artista", "genero"]):
+        # A API omite dias com zero views; sem preencher, a janela de 90 linhas cobriria
+        # mais de 90 dias e o dia típico sairia mais alto do que é.
+        g = g.assign(data=pd.to_datetime(g["data"])).set_index("data")["views"]
+        g = (g.reindex(pd.date_range(g.index.min(), g.index.max()), fill_value=0)
+             .rename_axis("data").reset_index().assign(artista=artista, genero=genero))
         lv = np.log1p(g["views"].astype(float))
         med = lv.rolling(janela, min_periods=MIN_DIAS_PICO).median().shift(1)
         mad = lv.rolling(janela, min_periods=MIN_DIAS_PICO).apply(

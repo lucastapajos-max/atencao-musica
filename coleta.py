@@ -1,19 +1,21 @@
 """Coleta diária de pageviews da Wikipédia em português e grava no SQLite.
 
 Fonte: Wikimedia REST API (dados CC0, sem chave). Conta só acessos de pessoas
-(agent=user), excluindo robôs. Rodar de novo é seguro: as linhas são substituídas.
+(agent=user), excluindo robôs. Rodar de novo é seguro: as linhas são substituídas,
+e artistas que saíram de artistas.csv saem do banco.
 
 Uso: python coleta.py [AAAA-MM-DD início]
 """
 import csv
+import json
 import sqlite3
 import sys
 import time
 from datetime import date, timedelta
 from pathlib import Path
+from urllib.error import HTTPError
 from urllib.parse import quote
-
-import requests
+from urllib.request import Request, urlopen
 
 RAIZ = Path(__file__).parent
 DB = RAIZ / "data" / "atencao.db"
@@ -28,34 +30,43 @@ def ultimo_domingo(hoje=None):
     return hoje - timedelta(days=hoje.weekday() + 1)
 
 
-def criar_tabelas(con):
-    con.executescript(Path(RAIZ / "schema.sql").read_text(encoding="utf-8"))
+def linhas_da_api(artigo, resposta):
+    """Resposta da API -> linhas (artigo, AAAA-MM-DD, views). O timestamp vem como AAAAMMDDHH."""
+    return [(artigo, f"{i['timestamp'][:4]}-{i['timestamp'][4:6]}-{i['timestamp'][6:8]}", int(i["views"]))
+            for i in resposta["items"]]
+
+
+def baixar(url):
+    for tentativa in range(5):
+        try:
+            with urlopen(Request(url, headers=HEADERS), timeout=30) as r:
+                return json.load(r)
+        except HTTPError as e:
+            if e.code != 429 or tentativa == 4:
+                raise
+            time.sleep(5 * (tentativa + 1))  # limite de taxa da API: espera e tenta de novo
 
 
 def coletar(inicio="2024-01-01"):
     fim = ultimo_domingo()
     DB.parent.mkdir(exist_ok=True)
-    con = sqlite3.connect(DB)
-    criar_tabelas(con)
     with open(RAIZ / "artistas.csv", encoding="utf-8") as f:
         artistas = list(csv.DictReader(f))
-    con.executemany("INSERT OR REPLACE INTO artistas VALUES (:artigo, :artista, :genero)", artistas)
-    s = requests.Session()
-    for a in artistas:
-        url = API.format(artigo=quote(a["artigo"], safe=""),
-                         ini=inicio.replace("-", ""), fim=fim.strftime("%Y%m%d"))
-        for tentativa in range(5):
-            r = s.get(url, headers=HEADERS, timeout=30)
-            if r.status_code != 429:
-                break
-            time.sleep(5 * (tentativa + 1))  # limite de taxa da API: espera e tenta de novo
-        r.raise_for_status()
-        time.sleep(1)
-        linhas = [(a["artigo"], f"{i['timestamp'][:4]}-{i['timestamp'][4:6]}-{i['timestamp'][6:8]}",
-                   i["views"]) for i in r.json()["items"]]
-        con.executemany("INSERT OR REPLACE INTO pageviews VALUES (?, ?, ?)", linhas)
-        print(f"{a['artista']:<22} {len(linhas):>5} dias")
-    con.commit()
+    con = sqlite3.connect(DB)
+    con.executescript((RAIZ / "schema.sql").read_text(encoding="utf-8"))
+    with con:  # uma transação só: ou a semana entra inteira, ou nada muda
+        artigos = [a["artigo"] for a in artistas]
+        marcas = ",".join("?" * len(artigos))
+        con.execute(f"DELETE FROM pageviews WHERE artigo NOT IN ({marcas})", artigos)
+        con.execute(f"DELETE FROM artistas WHERE artigo NOT IN ({marcas})", artigos)
+        con.executemany("INSERT OR REPLACE INTO artistas VALUES (:artigo, :artista, :genero)", artistas)
+        for a in artistas:
+            url = API.format(artigo=quote(a["artigo"], safe=""),
+                             ini=inicio.replace("-", ""), fim=fim.strftime("%Y%m%d"))
+            linhas = linhas_da_api(a["artigo"], baixar(url))
+            con.executemany("INSERT OR REPLACE INTO pageviews VALUES (?, ?, ?)", linhas)
+            print(f"{a['artista']:<22} {len(linhas):>5} dias")
+            time.sleep(1)
     con.close()
 
 

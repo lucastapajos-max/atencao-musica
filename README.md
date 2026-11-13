@@ -25,7 +25,7 @@ Num relatório semanal de redes sociais, uma pergunta sempre volta: "esse númer
 
 | Etapa | Arquivo | O que faz |
 |---|---|---|
-| Coleta | [`coleta.py`](coleta.py) | Chama a API para cada artista, respeita o limite de taxa (espera e tenta de novo) e grava no SQLite. Rodar de novo substitui as linhas, sem duplicar. |
+| Coleta | [`coleta.py`](coleta.py) | Chama a API para cada artista, respeita o limite de taxa (espera e tenta de novo) e grava no SQLite. Rodar de novo substitui as linhas, sem duplicar, e quem sai de `artistas.csv` sai do banco. Tudo numa transação só. |
 | Banco | [`schema.sql`](schema.sql) | Duas tabelas: `artistas` e `pageviews` (chave artigo + data). |
 | Consulta | [`analise.py`](analise.py) | A agregação semanal sai de SQL (semana de segunda a domingo). O app tem uma aba para rodar consultas próprias, com o banco aberto só para leitura. |
 | Faixa de normalidade | `faixa_normal()` | Mediana e intervalo interquartil (IQR) das 26 semanas anteriores. Acima de Q3 + 1,5 × IQR é "acima do normal", o critério do boxplot. Com menos de 8 semanas de histórico, não julga. |

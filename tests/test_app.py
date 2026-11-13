@@ -18,3 +18,11 @@ def test_um_genero_so_avisa_na_comparacao_e_mantem_o_sql():
     at = rodar(["MPB"])
     assert any("ao menos dois gêneros" in i.value for i in at.info)
     assert at.text_area  # a aba SQL continua de pé
+
+
+def test_sql_pesado_e_interrompido_sem_derrubar_o_app():
+    at = rodar()
+    at.text_area[0].set_value("SELECT COUNT(*) FROM pageviews a, pageviews b, pageviews c").run()
+    at.button[0].click().run()
+    assert not at.exception
+    assert any("não rodou" in e.value for e in at.error)

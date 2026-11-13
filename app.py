@@ -26,6 +26,8 @@ components.html("<script>window.parent.document.documentElement.lang = 'pt-BR'</
 # Uma cor por gênero no app inteiro. Vermelho fica de fora: aqui ele leria como alerta.
 CORES = {"Sertanejo": "#C27C0E", "Funk e pop": "#C2416B", "MPB": "#0F7B6C", "Rap e trap": "#2F5BB7"}
 STATUS_FUNDO = {"acima do normal": "rgba(15,123,108,.22)", "abaixo do normal": "rgba(194,124,14,.25)"}
+LIMITE_PASSOS_SQL = 20_000_000  # passos internos do SQLite antes de interromper (~1 s)
+LIMITE_LINHAS_SQL = 1_000
 NUM = "localized"  # separador de milhar conforme o idioma do navegador
 
 
@@ -68,7 +70,7 @@ def rotulo_semana(s):
 
 st.title("Atenção digital à música brasileira")
 st.caption(
-    "Quanto as pessoas procuram saber de 24 artistas brasileiros, medido pelas visualizações dos "
+    f"Quanto as pessoas procuram saber de {semanal['artista'].nunique()} artistas brasileiros, medido pelas visualizações dos "
     f"verbetes na Wikipédia em português, de {diario['data'].min():%d/%m/%Y} a "
     f"{diario['data'].max():%d/%m/%Y}. Atualizado toda segunda. Fonte: Wikimedia Pageviews API "
     "(dados abertos, CC0), só acessos humanos.")
@@ -128,9 +130,7 @@ with aba1:
 
         artista = st.selectbox("Série semanal de um artista", tab["artista"])
         g = sem[sem["artista"] == artista].sort_values("semana").copy()
-        roll = g["views"].rolling(26, min_periods=an.MIN_SEMANAS_FAIXA)
-        g["q1"], g["q3"] = roll.quantile(.25).shift(1), roll.quantile(.75).shift(1)
-        g["lim_sup"] = g["q3"] + 1.5 * (g["q3"] - g["q1"])
+        g = g.join(an.faixa_rolante(g["views"]))
         cor = CORES[g["genero"].iloc[0]]
         fig = go.Figure([
             go.Scatter(x=g["semana"], y=g["q3"], line=dict(width=0), showlegend=False, hoverinfo="skip"),
@@ -252,7 +252,17 @@ with aba4:
     if st.button("Rodar consulta", type="primary"):
         try:
             with sqlite3.connect(f"file:{an.DB.as_posix()}?mode=ro", uri=True) as con:
-                st.dataframe(pd.read_sql_query(q, con), hide_index=True, width="stretch")
+                # O app é um processo só para todos os visitantes: consulta pesada é interrompida,
+                # ATTACH (que criaria arquivo no servidor) é negado e só as primeiras linhas aparecem.
+                con.set_progress_handler(lambda: 1, LIMITE_PASSOS_SQL)
+                con.set_authorizer(lambda acao, *_: sqlite3.SQLITE_DENY if acao == sqlite3.SQLITE_ATTACH
+                                   else sqlite3.SQLITE_OK)
+                cur = con.execute(q)
+                linhas = cur.fetchmany(LIMITE_LINHAS_SQL + 1)
+                res = pd.DataFrame(linhas[:LIMITE_LINHAS_SQL], columns=[c[0] for c in cur.description or []])
+            st.dataframe(res, hide_index=True, width="stretch")
+            if len(linhas) > LIMITE_LINHAS_SQL:
+                st.caption(f"Mostrando as primeiras {br(LIMITE_LINHAS_SQL)} linhas.")
         except Exception as e:  # erro de SQL do visitante: mostra em vez de quebrar o app
             st.error(f"A consulta não rodou: {e}. Confira os nomes das tabelas e colunas acima.")
 
